@@ -1,0 +1,573 @@
+---
+title: "`r params$forestname` Historical Fire Regimes"
+author: "Randy Swaty"
+date: "2025-11-04"
+output: html_document
+params:
+  forestname: "Hiawatha National Forest"
+---
+
+
+
+```{r setup, message=FALSE, warning=FALSE, include=FALSE}
+
+library(janitor)
+library(tidyverse)
+library(stringr)
+library(scales)
+library(plotly)
+library(viridis)
+library(DT)
+library(tidytext)
+library(viridis)
+
+forestname <- params$forestname
+
+# read and wrangle raw data
+data <- read.csv("inputs/bps_scls_nfs_cmbn.csv") |>
+  clean_names() |>
+  filter(region == "9") |>
+  mutate(raw_acres = round(count * 0.2223945)) |>
+  mutate(across(everything(), ~replace(., . == -9999, 0)))
+
+# prep data for bps bar chart
+bps_name_df <- data %>%
+  filter(forestname == params$forestname) %>%
+  group_by(bps_name) %>%
+  summarize(acres = sum(raw_acres)) %>%
+  arrange(desc(acres)) %>%
+  top_n(n = 10, wt = acres)
+
+# prep data for historical fire summary bullets and chart
+hist_fire <- data |>
+  filter(forestname == params$forestname) |>
+  group_by(bps_name) |>
+  summarise(
+    # calculate total acres per grouped bps_name
+    total_bps_acres = round(sum(raw_acres, na.rm = TRUE)),
+    # average FRIs
+    mean_replacement_fri = round(mean(fri_replac, na.rm = TRUE)),
+    mean_mixed_fri = round(mean(fri_mixed, na.rm = TRUE)),
+    mean_surface_fri = round(mean(fri_surfac, na.rm = TRUE)),
+    mean_all_fri = round(mean(fri_allfir, na.rm = TRUE)),
+    # calculate annual probability
+    annual_prob_replacement = ifelse(mean_replacement_fri > 0, 1 / mean_replacement_fri, 0),
+    annual_prob_mixed = ifelse(mean_mixed_fri > 0, 1 / mean_mixed_fri, 0),
+    annual_prob_surface = ifelse(mean_surface_fri > 0, 1 / mean_surface_fri, 0),
+    annual_prob_all = ifelse(mean_all_fri > 0, 1 / mean_all_fri, 0),
+    # calculate annual acres burned
+    annual_acres_replacement = round(annual_prob_replacement * total_bps_acres),
+    annual_acres_mixed = round(annual_prob_mixed * total_bps_acres),
+    annual_acres_surface = round(annual_prob_surface * total_bps_acres),
+    annual_acres_all = round(annual_prob_all * total_bps_acres)
+  )
+
+
+# data for summary bullets
+
+top_bps_name <- bps_name_df |>
+  slice_max(acres, n = 1) |>
+  pull(bps_name)
+
+top_bps_acres <- bps_name_df |>
+  slice_max(acres, n = 1) |>
+  pull(acres)
+
+total_acres_burned <- sum(hist_fire$annual_acres_all)
+total_acres_roi <- sum(hist_fire$total_bps_acres)
+percent_of_roi_burned <- round((total_acres_burned/total_acres_roi)*100)
+
+number_of_bps <- length(unique(hist_fire$bps_name))
+
+top_bps_fire <- hist_fire |>
+  slice_max(annual_acres_all, n = 1) |>
+  pull(bps_name)
+
+area_weighted_mean_all <- round(weighted.mean(hist_fire$mean_all_fri, w = hist_fire$total_bps_acres))
+
+min_all_fri <- min(hist_fire$mean_all_fri[hist_fire$mean_all_fri > 0])
+
+max_all_fri <- max(hist_fire$mean_all_fri)
+
+# wrangle data for strip chart (not used here, but precoursor to other charts)
+
+strip_chart_df <- hist_fire |>
+  select(c(bps_name,
+           mean_all_fri,
+           total_bps_acres,
+           annual_acres_all)) |>
+  filter_if(is.numeric, all_vars((.) != 0)) |>
+  arrange(mean_all_fri) |>
+  filter(total_bps_acres >= 1000)
+
+
+# Sort and compute positions
+strip_chart_df <- strip_chart_df %>%
+  arrange(mean_all_fri) %>%
+  mutate(
+    xmin = cumsum(lag(total_bps_acres, default = 0)),
+    xmax = cumsum(total_bps_acres),
+    ymin = 0,
+    ymax = 5,
+    xmid = (xmin + xmax) / 2 ,
+    color = viridis(n(), option = "magma", direction = -1)
+  )
+
+# wrangle data for bps area-MFRI chart
+
+bps_area_mfri_df <- strip_chart_df |>
+  top_n(n = 10, wt = total_bps_acres) |>
+  arrange(desc(total_bps_acres)) |>
+  mutate(percent_burned = round((annual_acres_all/total_bps_acres)*100))
+
+
+
+# wrangle data for panel chart
+hist_fire_10 <- hist_fire |>
+  top_n(n = 10, wt = annual_acres_all) |>
+  arrange(desc(annual_acres_all)) 
+
+hist_fire_10_clean <- hist_fire_10 |>
+  select(c(bps_name,
+           annual_acres_replacement,
+           annual_acres_mixed,
+           annual_acres_surface,
+           total_bps_acres)) |>
+  rename(
+    SURFACE = annual_acres_surface,
+    MIXED = annual_acres_mixed,
+    REPLACEMENT = annual_acres_replacement) |>
+  mutate(total_bps_acres = label_comma()(total_bps_acres)) |>
+  mutate(total_bps_acres =  paste0("(", total_bps_acres, " )")) |>
+  unite(col ='bps_name', c(bps_name, total_bps_acres), sep = " ")
+
+hist_fire_10__long <- hist_fire_10_clean |>
+  pivot_longer(!bps_name,
+               names_to = 'fire', 
+               values_to = 'acres')
+
+
+# Reorder bps_name by total acres (descending)
+hist_fire_10__long <- hist_fire_10__long %>%
+  group_by(bps_name) %>%
+  mutate(total_acres = sum(acres)) %>%
+  ungroup() |>
+  arrange(desc(total_acres)) 
+
+
+hist_fire_10__long <- hist_fire_10__long %>%
+  mutate(bps_name_wrapped = str_wrap(bps_name, width = 25))
+
+hist_fire_10__long <- hist_fire_10__long |>
+  mutate(bps_name_wrapped = fct_rev(fct_inorder(bps_name_wrapped)))
+
+
+
+```
+
+## Background
+
+LANDFIRE's [Biophysical Settings(BpS)](https://www.landfire.gov/vegetation/bps) tells many stories.  Officially it is:
+
+>a modeled representation of the vegetation system that may have been dominant on the landscape prior to Euro-American settlement and is based on both the current biophysical environment and an approximation of modeled past disturbance regimes. LF uses BPS to depict reference conditions of vegetation across landscapes.
+
+
+In these reports we do quick summaries of the BpSs and their associated historical fire regime attributes for each National Forest to:
+
+1. Identify the top Biophysical Settings and their extent
+2. Calculate average annual acres burned historically
+3. Explore which fire types were most prevelent (i.e., surfance, mixed or replacement)
+
+
+
+## Summary
+
+
+From a quick assessment of the BpSs and their historical Mean Fire Return Intervals for **`r forestname`** we found:
+
+* There were **`r number_of_bps`** Biophysical Settings (by name, there may be more if counting by variants).  The **`r top_bps_name`** was the most prevalent overall, with the **`r top_bps_fire`** having the most fire annually.
+* For the 10 most common BpSs, roughly **`r scales::comma(total_acres_burned)`** acres burned annually or **`r percent_of_roi_burned`%** of **`r forestname`**.
+* For the 10 most common BpSs, Mean Fire Return Intervals for all fire types combined ranged from **`r min_all_fri `** to **`r max_all_fri `** years, with an area weighted mean of **`r area_weighted_mean_all`** (weighted by acres of BpSs)
+
+<br>
+
+::: {style="text-align: center; font-size: 1.5em; font-weight: bold;"}
+Overview chart to explore historical fire regime patterns
+:::
+
+The 'strip chart' below is intended to introduce the charts that follow.   
+
+* The colors are set by the historical Mean Fire Return Interval, with yellows indicating fewer years between fires, darker colors indicating more years between fires
+* There is one rectangle per BpS; size of rectangle proportional to acres mapped.  BpSs < 1,000ac not shown.
+* Hover over rectangles to get more information.
+
+
+```{r}
+#| label: strip chart
+#| echo: false
+#| message: false
+#| warning: false
+
+library(dplyr)
+library(plotly)
+library(viridis)
+
+
+# Create rectangles in plotly
+p <- plot_ly()
+
+for (i in seq_len(nrow(strip_chart_df))) {
+  p <- add_trace(
+    p,
+    type = "scatter",
+    mode = "none",  # no lines or markers
+    fill = "toself",
+    hoveron = "fills",  # enable hover on filled area
+    x = c(strip_chart_df$xmin[i], strip_chart_df$xmax[i], strip_chart_df$xmax[i], strip_chart_df$xmin[i]),
+    y = c(strip_chart_df$ymin[i], strip_chart_df$ymin[i], strip_chart_df$ymax[i], strip_chart_df$ymax[i]),
+    fillcolor = strip_chart_df$color[i],
+    line = list(color = "#D3D3D3", width = 1), # <- this is the key line
+    hoverinfo = "text",
+    text = paste0(
+      "<b>", strip_chart_df$bps_name[i], "</b><br>",
+      "Mean Fire Return Interval: ", round(strip_chart_df$mean_all_fri[i], 1), " years<br>",
+      "Amount: ", format(round(strip_chart_df$total_bps_acres[i]), big.mark = ","), " acres"
+    ),
+    name = strip_chart_df$bps_name[i],
+    showlegend = FALSE
+  )
+}
+
+
+# Layout
+p <- layout(
+  p,
+  title = list(
+    text = "",
+    font = list(size = 16, color = "black"),
+    yref = "paper",
+    y = 1.05
+  ),
+  xaxis = list(
+    showticklabels = FALSE,
+    showgrid = FALSE,
+    zeroline = FALSE
+  ),
+  yaxis = list(
+    showticklabels = FALSE,
+    showgrid = FALSE,
+    zeroline = FALSE
+  ),
+  hoverlabel = list(bgcolor = "white"),
+  margin = list(t = 10, b = 10, l = 30, r = 10),
+annotations = list(
+  list(
+    text = "BpSs with less than 1,000 acres removed | Visualization by Randy Swaty",
+    xref = "paper",
+    yref = "paper",
+    x = 1,        # far right
+    y = -0.5,     # just below x-axis
+    xanchor = "right",  # aligns text to the right edge
+    showarrow = FALSE,
+    font = list(size = 10, color = "gray")
+  )
+))
+
+p
+
+```
+
+<br>
+
+
+## Top 10 Biophysical Settings 
+
+```{r bps chart, message=FALSE, warning=FALSE, echo=FALSE, fig.width=10, fig.height=10}
+
+# plot
+bps_name_chart <- 
+  ggplot(data = bps_name_df, aes(x = bps_name, y = acres)) +
+  geom_bar(stat = "identity") +
+  labs(
+    subtitle = "Represents dominant vegetation systems pre-European colonization",
+    caption = "Data from landfire.gov.",
+    x = "",
+    y = "Acres") +
+  scale_x_discrete(limits = rev(bps_name_df$bps_name),
+                   labels = function(x) str_wrap(x, width = 18)) +
+  scale_y_continuous(labels = comma) +
+  coord_flip() +
+  theme_bw(base_size = 14)
+
+
+bps_name_chart
+
+
+```
+
+## Fire Return Interval and Severity by Biophysical Setting
+
+
+The BpS dataset includes multiple attributes including:
+
+* BPS_CODE 	Biophysical Settings (BpS) code used by LANDFIRE
+* ZONE 	National Land Cover Database Map Zone the BpS relates to
+* BPS_MODEL 	Unique BpS model code
+* BPS_NAME 	BpS Name
+* FRI_REPLAC 	Average historic replacement fire frequency (greater than 75% top kill of vegetation)
+* FRI_MIXED 	Average historic mixed fire frequency
+* FRI_SURFAC 	Average historic surface fire frequency
+* FRI_ALL Quantifies the average period between fires (all types).
+
+You can download the raw attribute table [here](https://www.landfire.gov/sites/default/files/CSV/LF2023/LF23_BPS_240.csv) and the data dictionary [here](https://www.landfire.gov/sites/default/files/DataDictionary/LF2023/LF23_BPSADD_240.pdf).
+
+For the charts and data table below we added some additional calculations such as annual acres burned by fire severity.  
+
+*Also see below for FRI_ALL "All Fires" calculation*
+
+### Mean Fire Return Inverval by Biophysical Setting
+
+The chart below indicates the total area (in acres) per Biophysical Setting and "All Fires" Mean Fire Return Interval (years, in parentheses).  Colors set to match those of the map on the home page, and of the strip chart above.
+
+<br>
+
+```{r}
+#| label: bps_area_mfri_chart
+#| echo: false
+#| message: false
+#| warning: false
+#| fig.height: 10
+#| fig.width: 10
+
+
+# Wrap BPS names to 30 characters per line
+bps_area_mfri_df  <- bps_area_mfri_df %>%
+  mutate(bps_name_wrapped = str_wrap(bps_name, width = 30)) %>%
+  mutate(
+    bps_name_wrapped = str_wrap(paste0(bps_name, " (", mean_all_fri, " years)"), width = 30)
+  )
+
+
+# Plot
+
+bps_area_mfri_chart <-
+ggplot(bps_area_mfri_df , aes(x = reorder(bps_name_wrapped,total_bps_acres),  y = total_bps_acres, fill = color)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  scale_fill_identity() +
+  labs(
+    x = "",
+    y = "Acres",
+    title = "Acres per Biophysical Setting",
+    subtitle = "Mean Fire Return Interval in Parentheses",
+    caption = "Data from LANDFIRE, Chart © Randy Swaty") +
+  theme_minimal(base_size = 14) +
+  scale_y_continuous(name = 'Acres', labels = comma) +
+  theme(panel.grid = element_blank(),
+        plot.caption = element_text(hjust = 0, face = "italic"),
+        plot.title.position = "plot",
+        plot.caption.position = "plot",)
+
+
+bps_area_mfri_chart
+
+```
+
+
+<br>
+
+### Annual Acres Burned per Biophysical Setting
+
+The above chart depicts how much of each BpS was on the landscape.  The chart below depicts modeled annual acres burned per BpS.  
+
+
+```{r}
+#| label: annual_acres_burned_chart
+#| echo: false
+#| message: false
+#| warning: false
+#| fig.height: 10
+#| fig.width: 10
+
+
+
+# Plot
+
+annual_acres_burned_chart <- ggplot(bps_area_mfri_df,
+  aes(x = reorder(bps_name_wrapped, total_bps_acres),  
+      y = annual_acres_all, 
+      fill = color)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = paste0(percent_burned, "%")), 
+            hjust = -0.1, size = 4) +  # adjust hjust and size as needed
+  coord_flip() +
+  scale_fill_identity() +
+  labs(
+    x = "",
+    y = "Acres",
+    title = "Annual Acres Burned per Biophysical Setting",
+    subtitle = "Mean Fire Return Interval in Parentheses, percent of total area to right of bars",
+    caption = "Data from LANDFIRE, Chart © Randy Swaty") +
+  theme_minimal(base_size = 14) +
+  scale_y_continuous(name = 'Acres', labels = comma) +
+  theme(panel.grid = element_blank(),
+        plot.caption = element_text(hjust = 0, face = "italic"),
+        plot.title.position = "plot",
+        plot.caption.position = "plot",)
+
+
+annual_acres_burned_chart
+```
+
+
+
+### Fire Severity by Biophysical Setting
+
+The chart below depicts Mean Fire Return Interval per Biophysical Setting, split out by fire severity.  
+
+<br>
+
+
+
+```{r}
+#| label: hist fire panel chart
+#| echo: false
+#| message: false
+#| warning: false
+#| fig.width: 10
+#| fig.height: 10
+
+
+
+hist_fire_panel_chart <- ggplot(hist_fire_10__long, 
+                                aes(x = bps_name_wrapped, 
+                                    y = acres, 
+                                    fill = fire,
+                                    )) + 
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(
+    title = "Historical Fire Annual Acres Burned per Ecosystem",
+    subtitle = "Descending order by total amount of fire.  Total ecosystem acres in parentheses.",
+    caption = "Data from LANDFIRE, Chart © Randy Swaty",
+    x = "",
+    y = "Acres" ) +
+  theme_minimal(base_size = 14) +
+  theme(
+
+    plot.caption = element_text(hjust = 0, face = "italic"),
+    plot.title.position = "plot",
+    plot.caption.position = "plot",
+    panel.grid = element_blank(),
+    strip.background = element_rect(fill = "grey90", color = NA),
+    strip.text = element_text(face = "bold"),
+    plot.subtitle = element_text(margin = margin(b = 20, unit = "pt"))) +
+  facet_wrap(~ fire, 
+             ncol = 3) +
+
+  guides(fill = "none") +
+  scale_y_continuous(labels = comma,
+                     breaks = pretty_breaks(n = 3)) +
+  scale_fill_manual(values = c("SURFACE" = "#ded076", 
+                               "MIXED" = "#8da69e", 
+                               "REPLACEMENT" = "#b3b1a6")) 
+
+# Display the chart
+hist_fire_panel_chart
+
+
+
+
+
+```
+
+
+## Almost raw historical fire regime data table
+
+As noted above for the charts and data table we removed some columns (e.g., color ramp), added some calculations (e.g., annual acres burned) and renamed the columns for easier work in R and for clarity.  Below you can filter, sort and explore the data.  In the following table:
+
+* 'fri' = fire return interval, or the mean number of years between fires
+* There are several columns that will be 'off screen'.  Look for horizontal scroll bar at the bottom of the table.
+* the "annual_probability_____" columns refer to the 'chance' that a location had that particular type of fire during a year on average.  
+
+LANDFIRE used the annual probabilities in the original modeling (see [Blankenship et al., (2021)](https://esajournals.onlinelibrary.wiley.com/doi/pdf/10.1002/ecs2.3484) for more information).  Below is an example of how the math works:
+
+Example calculation of MFRI and annual acres burned for a 1,000 acre ecosystem with a 0.2 annual probability of fire:
+
+<br>
+
+$$
+MFRI = 1/0.2 = 5ys
+$$
+<br>
+
+```{r}
+#| label: bps data table
+#| echo: false
+#| message: false
+#| warning: false
+
+
+# Render the table with DT
+datatable(
+  hist_fire,
+  options = list(
+    scrollX = TRUE,
+    fixedHeader = TRUE,
+    autoWidth = FALSE,
+    columnDefs = list(
+      list(
+        targets = 3, # Assuming column 3 is Description
+        width = '250px',
+        render = JS("function(data, type, row, meta) {
+          return type === 'display' && data.length > 50 ? 
+            '<span title=\"' + data + '\">' + data.substr(0, 50) + '...</span>' : data;
+        }")
+      )
+    ),
+    lengthMenu = list(c(5, 10, -1), c('5', '10', 'All'))
+  )
+) %>%
+  formatCurrency(
+    columns = c(
+      'total_bps_acres',
+      'annual_acres_replacement',
+      'annual_acres_mixed',
+      'annual_acres_surface',
+      'annual_acres_all'
+    ),
+    currency = '',
+    interval = 3,
+    mark = ',',
+    digits = 0
+  ) %>%
+  formatRound(
+    columns = c(
+      "mean_replacement_fri",
+      "mean_mixed_fri",
+      "mean_surface_fri",
+      "mean_all_fri"
+    ),
+    digits = 0
+  ) %>%
+  formatRound(
+    columns = c(
+      "annual_prob_replacement",
+      "annual_prob_mixed",
+      "annual_prob_surface",
+      "annual_prob_all"
+    ),
+    digits = 2
+  )
+
+
+```
+
+
+
+
+
+
+
+
+
