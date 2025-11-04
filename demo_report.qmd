@@ -1,9 +1,15 @@
 ---
 title: "`r params$forestname` Historical Fire Regimes"
 author: "Randy Swaty"
-date: "2025-11-04"
-output: html_document
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    theme: flatly
+    toc: true
+    toc_float:
+      collapsed: true
 params:
+
   forestname: "Hiawatha National Forest"
 ---
 

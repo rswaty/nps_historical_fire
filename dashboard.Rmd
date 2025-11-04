@@ -75,7 +75,7 @@ Column {.sidebar data-width=500}
 
 Curious about the historical fire regimes and to practice using parameterized reports in R, I put together this simple dashboard using US Forest Service admin boundaries (https://data.fs.usda.gov/geodata/edw/datasets.php?dsetCategory=boundaries) and LANDFIRE's Biophysical Settings Data (https://landfire.gov/vegetation/bps).  
 
-A few fun facts emerged:
+A few fun facts emerged when summarizing for the top most representative BpSs for each forest:
 
 * There was an average of over 750,000 acres of fire each year prior to European Colonization within the forests of Region 9
 * Midewin National Tallgrass Prairie had the most fire with over 143,000 acres per year
