@@ -32,7 +32,7 @@ forestname <- params$forestname
 # read and wrangle raw data
 data <- read.csv("inputs/bps_scls_nfs_cmbn.csv") |>
   clean_names() |>
-  filter(region == "9") |>
+  #filter(region == "9") |>
   mutate(raw_acres = round(count * 0.2223945)) |>
   mutate(across(everything(), ~replace(., . == -9999, 0)))
 
@@ -175,9 +175,9 @@ hist_fire_10__long <- hist_fire_10__long |>
 
 ## Background
 
-LANDFIRE's [Biophysical Settings(BpS)](https://www.landfire.gov/vegetation/bps) tells many stories.  Officially it is:
+LANDFIRE's [Biophysical Settings(BpS)](https://www.landfire.gov/vegetation/bps) tell many stories-where ecosystems were likely to occur historically, how they looked and functioned.  Officially BpSs are:
 
->a modeled representation of the vegetation system that may have been dominant on the landscape prior to Euro-American settlement and is based on both the current biophysical environment and an approximation of modeled past disturbance regimes. LF uses BPS to depict reference conditions of vegetation across landscapes.
+> "A modeled representation of the vegetation system that may have been dominant on the landscape prior to Euro-American settlement and is based on both the current biophysical environment and an approximation of modeled past disturbance regimes. LF uses BPS to depict reference conditions of vegetation across landscapes."
 
 
 In these reports we do quick summaries of the BpSs and their associated historical fire regime attributes for each National Forest to:
