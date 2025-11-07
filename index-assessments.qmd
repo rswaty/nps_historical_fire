@@ -1,0 +1,228 @@
+---
+title: "LANDFIRE-Powered Landscape Assessments"
+format: 
+  dashboard:
+    logo: images/LANDFIRE.png
+    nav-buttons: 
+      - icon: youtube
+        href: https://www.youtube.com/@LANDFIREvideo
+      - icon: linkedin
+        href: https://www.linkedin.com/company/landfire/?viewAsMember=true
+      
+
+
+metadata-files: 
+  - _extra.yml
+
+---
+
+
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(leaflet)
+library(sf)
+library(leaflet.extras)
+library(htmltools)
+library(tidyverse)
+library(htmlwidgets)
+
+
+# Load the shapefile
+
+assessments_shp <- st_read("data/assessments.shp") %>%
+  st_transform(crs = 4326)
+
+
+```
+
+
+# Landscape Assessments {orientation="columns" scrolling="false"}
+
+## Column {width=60%}
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# Load the shapefile
+assessments_shp <- st_read("data/assessments.shp", quiet = TRUE) %>%
+  st_transform(crs = 4326) %>%
+  select(c(org_nam, geometry))
+
+# Read assessments.csv into R
+assessments_attributes <- read.csv("data/assessments.csv")
+
+
+# Perform the join
+assessments_shp <- dplyr::left_join(assessments_shp, assessments_attributes, by = 'org_nam')
+
+# Ensure drw_rdr is a numeric vector
+assessments_shp$drw_rdr <- as.numeric(as.character(assessments_shp$drw_rdr))
+
+# Order your polygons in descending order based on the drw_rdr column
+assessments_shp <- assessments_shp[order(-assessments_shp$drw_rdr), ]
+
+tol_muted_palette <- colorFactor(c('#88CCEE', '#44AA99', '#117733', '#332288', '#DDCC77', '#999933','#CC6677', '#882255', '#AA4499', '#52504a'), assessments_shp$org_nam)
+
+# Create the map
+map <- leaflet() %>%
+  addTiles()
+
+# Add polygons to the map in the desired order
+for (i in 1:nrow(assessments_shp)) {
+  map <- map %>%
+    addPolygons(
+      data = assessments_shp[i, ], 
+      color = ~tol_muted_palette(org_nam), 
+      weight = 2, 
+      opacity = 1, 
+      fillOpacity = 0.3,
+      popup = ~paste(
+        "<b>Landscape:</b> ", dsply_n, "<br>",
+        "<b>Click for full report:</b> <a href='", link, "' target='_blank'>", link, "</a>"
+      ),
+      group = assessments_shp$dsply_n[i], # Assign group based on dsply_n
+      options = pathOptions(zIndex = assessments_shp$drw_rdr[i]) # Use zIndex to control order
+    )
+}
+
+# Add layers control
+map <- map %>%
+  addLayersControl(
+    overlayGroups = unique(assessments_shp$dsply_n),
+    options = layersControlOptions(collapsed = TRUE, position = "topright")
+  ) %>%
+  setView(lng = -82.5, lat = 37, zoom = 4) %>%
+  htmlwidgets::onRender("
+    function() {
+      $('.leaflet-control-layers-overlays').prepend('<label style=\"text-align:center\">Completed Assessments</label>');
+    }
+  ")
+
+map
+
+saveWidget(map, file = "assessments_map.html")
+
+```
+
+## Column 2 {width=40%}
+
+<div style="text-align: right; padding-top: 20 px; padding-bottom: 50px;">
+![](images/logosall.png){width=40% fig-alt="LANDFIRE logo"}
+</div>
+<br>
+
+<br>
+<br>
+<h3>Why this Site?</h3>
+This site showcases landscape assessments completed across the United States using [LANDFIRE Products](https://landfire.gov/). By sharing these examples, the [LANDFIRE Program](https://landfire.gov/) aims to provide insights and ideas for your own landscape assessments. If you conduct a new assessment, please [let us know](mailto:rswaty@tnc.org) as we may be interested in adding it to this site. You can use these assessments as a foundation for building your own analyses. 
+
+<h3>LANDFIRE Connects the Dots</h3>
+
+Using [LANDFIRE](https://landfire.gov/) to investigate your landscape provides comprehensive, up-to-date and standardized data that can advance your and others' understanding of current ecosystem conditions and historical disturbances, while also supporting informed natural resource management decisions.
+
+Based on current [LANDFIRE Products,](https://landfire.gov/) these landscape assessments provide tangible, real-life examples of how other people have applied LANDFIRE and serve as a starting point for future analyses. Assessments like these can help users understand the context of current ecosystem conditions, the historical role of disturbances, and inform future natural resource management decisions. 
+
+<h3>Getting Started</h3>
+
+1. Click the landscape of interest
+2. Click the link to the external dashboard
+3. Start exploring the individual assessment
+
+Each assessment was created individually and may reflect the specific needs of the assessment partners.
+
+<h3>Why LANDFIRE?</h3>
+
+LANDFIRE provides complete, landscape-scale products using standardized legends and methodologies. These products are regularly updated and including historical information including [Biophysical Settings Products](https://landfire.gov/vegetation/bps), [Historic Fire Regime](https://landfire.gov/fire-regime) and [Historic Disturbance Products](https://landfire.gov/disturbance/hdist). 
+
+<h3>Why Does This Matter?</h3>
+
+Natural resource professionals need versatile, current and continuous data to support their analysis decisions. These assessments are just a sample of what is possible when LANDFIRE products are creatively applied to natural resource questions. Further assistance with assessments can be obtained by contacting Nature Conservancy Ecologist, [Randy Swaty](mailto:rswaty@tnc.org). For technical questions about LANDFIRE products reach out to the [LANDFIRE Helpdesk](https://landfire.gov/contact).
+
+<h3>Example questions to consider:</h3>
+
+* How have regional fire regimes changed over time? (Step 1: Navigate to landscape assessment of interest, Step 2: Explore "Past" tab [see example](https://thenatureconservancy.github.io/wyba/past.html)). 
+* What broad vegetation trends are occurring within a landscape? (Step 1: Navigate to landscape assessment of interest, Step 2: Explore "Comparing" tab [see example](https://thenatureconservancy.github.io/wyba/comparing.html)).
+* What are the most dominant lifeforms and how does this compare with local knowledge of a specific area? (Step 1: Navigate to landscape assessment of interest, Step 2: Explore "Present" tab [see example](https://thenatureconservancy.github.io/wyba/present.html)).
+
+
+
+# LANDFIRE Products  {orientation="columns" scrolling="false"}
+![](images/logosall.png){width=20% fig-alt="LANDFIRE logo"}
+<h2>LANDFIRE Products Used</h2>
+
+* [Biophysical Settings Spatial Data](https://landfire.gov/vegetation/bps): BpS data represents the vegetation that may have been dominant on the landscape prior to European colonization of North America and is based on both the current biophysical environment and an approximation of the historical disturbance regime
+* [Reference Conditions Table](https://landfire.gov/vegetation/bps-models): Reference Conditions table is a tool used to describe the historical conditions of ecosystems, including vegetation types, fire regimes, and ecological processes
+* [Existing Vegetation Cover (EVC)](https://landfire.gov/vegetation/evc): Existing Vegetation Cover (EVC) - represents the vertically projected percent cover of the live canopy layer for a 30-m cell
+* [Existing Vegetation Height (EVH)](https://landfire.gov/vegetation/evh): Existing Vegetation Height (EVH) - represents the average height of the dominant vegetation for a 30-m cell
+* [Existing Vegetation Type](https://landfire.gov/vegetation/evt): Existing Vegetation Type (EVT) - represents the current distribution of the terrestrial ecological systems classification, developed by NatureServe for the western hemisphere, through 2016
+* [Succession Classes](https://landfire.gov/vegetation/sclass): Succession Class data categorizes current vegetation composition and structure into different successional classes based on the Biophysical Settings model
+
+<h2>Get LANDFIRE Data</h2>
+Many options exist for accessing LANDFIRE data:
+
+* [LANDFIRE Map Viewer](https://www.landfire.gov/viewer): Use the LF Map viewer to download your specific area of interest by product year
+* [Full Extent Downloads](https://landfire.gov/data/FullExtentDownloads): A one-stop-shop for downloading the full extent of any LANDFIRE layer
+* [Stream Data using the LANDFIRE Product Service (LFPS)](https://lfps.usgs.gov/arcgis/rest/services/LandfireProductService/GPServer): Use the LFPS service to retrieve specific layers of interest resulting in a multi-band geotiff file
+* [LANDFIRE Image Service](https://lfps.usgs.gov/arcgis/rest/services): Use this option to view, query, and analyze LANDFIRE data directly through web-based mapping applications and GIS software
+* [LANDFIRE WMS/WCS](https://landfire.gov/data/lf_stream): Use this option to "stream" LANDFIRE data without needing to download it to your computer.
+*[ArcGIS Online](https://usgs.maps.arcgis.com/): Use this option to interact with an analyze LANDFIRE datasets through ArcGIS Online's web-based platform
+
+<h2>Landscape Assessment Process</h2>
+
+Creating a preliminary landscape assessment can be achieved with a little experience working in [R Studio,](https://posit.co/products/open-source/rstudio/) [QGIS,](https://qgis.org/) [GitHub](https://github.com/) and [Quarto.](https://quarto.org/)
+
+While each assessment was customized for a specific intended audience, the general order of operations remains consistent throughout. The following is a simple diagram that describes the two major processes used to create each assessment. By integrating automation where possible, the process of creating an assessment from start-to-finish can be achieved in under 2-hours. 
+
+Do you want to see your landscape in a similar format? [Get in touch](https://landfire-tnc.github.io/Assessments/#about).
+
+
+<h2>Step 1</h2>
+
+![](images/2.png){width=50% fig-alt="Flow chart with 4 steps, listed from step 1 to step 4: step 1: Obtain shapefile for area of interest, 2: download LANDFIRE data, clip to area of interest, 3. build attributes, calculate acres / BpS acres / EVT, etc. 4. Write files i.e. tiffs, .csv & make maps"}
+<br>
+
+<h2>Step 2</h2>
+<br>
+
+
+
+![](images/1.png){width=50% fig-alt="Flow chart with 4 steps, listed from step 1 to step 4: step 1: create prject in R studio, link to GitHub, 2: import data, maps to web report directory. 3: customize, run check Quarto files (incl. all data visualizations). 4: build, deploy website to GitHub, QA/QC"}
+<br>
+
+# About  {orientation="columns" scrolling="false"}
+![](images/logosall.png){width=20% fig-alt="LANDFIRE logo"}
+<h2>LANDFIRE</h2>
+
+[LANDFIRE](https://landfire.gov/) (Landscape Fire and Resource Management Planning Tools)  is a shared interagency wildland fire management data program across the United States and Territories. Leadership, management, and oversight are through the U.S. Department of Agriculture Forest Service - Fire and Aviation Management and the U.S. Department of the Interior – Office of Wildland Fire.
+
+LANDFIRE provides more than twenty landscape-scale geospatial products of biological and ecological data, including data such as (900+) vegetation types and (13/40) fire behavior fuel models that support all-lands planning, fire and natural resources management, operations, analyses and assessments. 
+
+<h2>Principal Partners</h2>
+
+U.S. Department of the Interior (DOI) & U.S. Department of Agriculture Forest Service (USFS)
+
+
+<h2>Project Team</h2>
+
+USGS EROS, EROS Technical Support Services Contract (KBR), The Nature Conservancy*, USDA Forest Service (Rocky Mountain Research Station) RMRS, and Forest Inventory & Analysis (FIA)
+
+*TNC is a Major Partner in the LANDFIRE Program supported by a cooperative agreement through USDA Forest Service. TNC’s LANDFIRE Team works closely with the LANDFIRE Business Leads, program staff, and other partners to provide support to LANDFIRE and the user community.
+
+<h2>Partners</h2>
+
+USGS Gap Analysis, USGS National Land Imaging Program 
+
+<h2>Questions? LANDFIRE is here to help</h2>
+
+* Get in touch with [TNC Ecologist, Randy Swaty,](mailto:rswaty@tnc.org) (Landscape assessment creator and TNC Ecologist)
+
+* Ask the [LANDFIRE Helpdesk](mailto:helpdesk@landfire.gov)
+
+* Search (& subscribe to) the [LANDFIRE YouTube Channel](https://www.youtube.com/@LANDFIREvideo) (see tutorials, Office Hours, quick demonstrations)
+
+* See how others are [putting LANDFIRE products to work](https://arcg.is/1jmKm90)
+
+* [Check out LANDFIRE 101](https://landfire-tnc.github.io/LANDFIRE_101/) (your go-to resource for learning how to best apply and use LANDFIRE products)
+
+* [Sign up for the LANDFIRE Newsletter 2-min read](https://landfire.us9.list-manage.com/subscribe?u=25aeabb346a09aaf1c528f007&id=2f025aaae2)

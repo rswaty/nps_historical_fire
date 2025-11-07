@@ -36,7 +36,6 @@ data <- read.csv("inputs/bps_scls_nfs_cmbn.csv") |>
   mutate(raw_acres = round(count * 0.2223945)) |>
   mutate(across(everything(), ~replace(., . == -9999, 0)))
 
-write.csv(data, file = "data_r9.csv")
 
 # prep data for bps bar chart
 bps_name_df <- data %>%
