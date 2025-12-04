@@ -1,5 +1,5 @@
 ---
-title: "`r params$forestname` Historical Fire Regimes"
+title: "`r params$unit_name` Historical Fire Regimes"
 author: "Randy Swaty"
 date: "`r Sys.Date()`"
 output: 
@@ -10,7 +10,7 @@ output:
       collapsed: true
 params:
 
-  forestname: "Hoosier National Forest"
+  unit_name: "Acadia National Park"
 ---
 
 
@@ -27,10 +27,10 @@ library(DT)
 library(tidytext)
 library(viridis)
 
-forestname <- params$forestname
+unit_name <- params$unit_name
 
 # read and wrangle raw data
-data <- read.csv("inputs/bps_scls_nfs_cmbn.csv") |>
+data <- read.csv("inputs/bps_scls_nps_cmbn.csv") |>
   clean_names() |>
   #filter(region == "9") |>
   mutate(raw_acres = round(count * 0.2223945)) |>
@@ -39,7 +39,7 @@ data <- read.csv("inputs/bps_scls_nfs_cmbn.csv") |>
 
 # prep data for bps bar chart
 bps_name_df <- data %>%
-  filter(forestname == params$forestname) %>%
+  filter(unit_name == params$unit_name) %>%
   group_by(bps_name) %>%
   summarize(acres = sum(raw_acres)) %>%
   arrange(desc(acres)) %>%
@@ -47,7 +47,7 @@ bps_name_df <- data %>%
 
 # prep data for historical fire summary bullets and chart
 hist_fire <- data |>
-  filter(forestname == params$forestname) |>
+  filter(unit_name == params$unit_name) |>
   group_by(bps_name) |>
   summarise(
     # calculate total acres per grouped bps_name
@@ -179,21 +179,21 @@ LANDFIRE's [Biophysical Settings(BpS)](https://www.landfire.gov/vegetation/bps) 
 > "A modeled representation of the vegetation system that may have been dominant on the landscape prior to Euro-American settlement and is based on both the current biophysical environment and an approximation of modeled past disturbance regimes. LF uses BPS to depict reference conditions of vegetation across landscapes."
 
 
-In these reports we do quick summaries of the BpSs and their associated historical fire regime attributes for each National Forest to:
+In these reports we do quick summaries of the BpSs and their associated historical fire regime attributes for each National Park to:
 
 1. Identify the top Biophysical Settings and their extent
 2. Calculate average annual acres burned historically
-3. Explore which fire types were most prevelent (i.e., surfance, mixed or replacement)
+3. Explore which fire types were most prevalent (i.e., surface, mixed or replacement)
 
 
 
 ## Summary
 
 
-From a quick assessment of the BpSs and their historical Mean Fire Return Intervals for **`r forestname`** we found:
+From a quick assessment of the BpSs and their historical Mean Fire Return Intervals for **`r unit_name`** we found:
 
 * There were **`r number_of_bps`** Biophysical Settings (by name, there may be more if counting by variants).  The **`r top_bps_name`** was the most prevalent overall, with the **`r top_bps_fire`** having the most fire annually.
-* For the 10 most common BpSs, roughly **`r scales::comma(total_acres_burned)`** acres burned annually or **`r percent_of_roi_burned`%** of **`r forestname`**.
+* For the 10 most common BpSs, roughly **`r scales::comma(total_acres_burned)`** acres burned annually or **`r percent_of_roi_burned`%** of **`r unit_name`**.
 * For the 10 most common BpSs, Mean Fire Return Intervals for all fire types combined ranged from **`r min_all_fri `** to **`r max_all_fri `** years, with an area weighted mean of **`r area_weighted_mean_all`** (weighted by acres of BpSs)
 
 <br>

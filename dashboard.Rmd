@@ -21,9 +21,10 @@ library(tidyverse)
 
 ```{r data prep, message=FALSE, warning=FALSE, include=FALSE}
 #  read shape
-shp <- st_read("inputs/r9_admin_boundaries.shp") %>% 
+shp <- st_read("inputs/nps_4k_plus_hectares_conus.shp") %>% 
   st_transform(crs = 4326) %>%
-  arrange(FORESTNAME)
+  arrange(UNIT_NAME) 
+
 
 paths <- list.files('output', pattern = '.html', all.files = TRUE, full.names = TRUE) %>%
   sort()
@@ -36,7 +37,7 @@ shp <- cbind(shp, paths)
 
 ##  Need something here
 
-<font size="6"> Region 9 National Forests </font>
+
 
 ```{r clickable map, echo=FALSE, message=FALSE, warning=FALSE, fig.width=16, fig.height=10}
 
@@ -48,8 +49,8 @@ leaflet(shp) %>%
     fillColor = "#0b631a",
     highlightOptions = highlightOptions(color = "white", weight = 3,
       bringToFront = TRUE),
-    popup = paste0( "For report"
-                 , shp$FORESTNAME
+    popup = paste0( "To obtain report for  "
+                 , shp$UNIT_NAME
                  , "<br>"
                  , "<a href='"
                  , shp$paths
@@ -73,13 +74,13 @@ Column {.sidebar data-width=500}
 <b><font  size="4em" color="#000000">Exploring Historical Fire Regimes with LANDFIRE data</font></b>  
 
 
-Curious about the historical fire regimes and to practice using parameterized reports in R, I put together this simple dashboard using US Forest Service admin boundaries (https://data.fs.usda.gov/geodata/edw/datasets.php?dsetCategory=boundaries) and LANDFIRE's Biophysical Settings Data (https://landfire.gov/vegetation/bps).  
+Curious about the historical fire regimes and to practice using parameterized reports in R, I put together this simple dashboard using National Parks Boundaries for units > 4k hectares (~10k acres) (https://data.fs.usda.gov/geodata/edw/datasets.php?dsetCategory=boundaries) and LANDFIRE's Biophysical Settings Data (https://landfire.gov/vegetation/bps).  The total area of these 123 parks was ~ 12M hectares (~ 30M acres).
 
-A few fun facts emerged when summarizing for the top most representative BpSs for each forest:
+A few fun facts emerged when summarizing for the top most representative BpSs for each park:
 
-* There was an average of over 750,000 acres of fire each year prior to European Colonization within the forests of Region 9
-* Midewin National Tallgrass Prairie had the most fire with over 143,000 acres per year
-* The forests dominated by northern hardwoods, such as the Ottawa had fire as well (~8,000ac), though less than those to the south. 
+* There was an average of over 810,000 acres of fire each year prior to European Colonization within the parks analyzed here.
+* South Florida Everglades Sawgrass Marsh, which occurred in the Big Cypress, Biscayne and Everglades park had the most fire with a total of almost 350,000 acres per year. 
+* Almost 50 Biophysical Settings had a Mean Fire Return Interval of less than 5 years, including many prairie, pine and oak woodland types.  
 
 **Click on the forest to get a link to a custom report**
 
