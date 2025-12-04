@@ -82,7 +82,7 @@ A few fun facts emerged when summarizing for the top most representative BpSs fo
 * South Florida Everglades Sawgrass Marsh, which occurred in the Big Cypress, Biscayne and Everglades park had the most fire with a total of almost 350,000 acres per year. 
 * Almost 50 Biophysical Settings had a Mean Fire Return Interval of less than 5 years, including many prairie, pine and oak woodland types.  
 
-**Click on the forest to get a link to a custom report**
+**Click on a park to get a link to a custom report**
 
 ![](conus_mfri.jpg){width=100%}
 
